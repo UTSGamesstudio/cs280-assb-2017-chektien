@@ -63,7 +63,15 @@ class Sudoku
     size_t moves_;
 
     // Other private fields and methods...
+    char* board_;
+    size_t board_len_;
+    size_t move_;
+    SymbolType stype_;
+    SudokuStats stats_;
+    CALLBACK callback_;
 
+    bool place_value(unsigned x, unsigned y); 
+    bool is_valid(unsigned x, unsigned y, char val);
 };
 
 #endif  // SUDOKUH
