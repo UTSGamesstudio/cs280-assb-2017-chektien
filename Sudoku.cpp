@@ -1,4 +1,4 @@
-//#define DEBUG_VALID
+#define DEBUG_VALID
 
 #include "Sudoku.h"
 #include <iostream>
@@ -31,7 +31,10 @@ bool Sudoku::Solve() {
 
     callback_(*this, board_, MessageType::MSG_STARTING, move_, stats_.basesize, -1, 0);
 
-    auto success = place_value(x, y);
+    // init list of available chars
+    avail_chars = avail_chars_init;
+
+    auto success = place_value(x, y, '1');
     if (success)
         callback_(*this, board_, MessageType::MSG_FINISHED_OK, move_, stats_.basesize, -1, 0);
     else
@@ -40,7 +43,7 @@ bool Sudoku::Solve() {
     return success;
 }
 
-bool Sudoku::place_value(unsigned x, unsigned y) {
+bool Sudoku::place_value(unsigned x, unsigned y, char val) {
     // base case is when reach 1 after last row
     if (y == board_len_)
         return true;
@@ -49,7 +52,7 @@ bool Sudoku::place_value(unsigned x, unsigned y) {
     unsigned index = x + board_len_ * y;
 
 #ifdef DEBUG_VALID
-    cout << "place_value: starting placement of (" << x << "," << y << ") "; 
+    cout << "place_value: starting placement of (" << x << "," << y << ") val=" << val << " "; 
 #endif
 
     // check if pos already occupied
@@ -61,19 +64,20 @@ bool Sudoku::place_value(unsigned x, unsigned y) {
 
         // recurse to next position
         if (x == board_len_ - 1) {
-            if (place_value(0, y+1))
+            if (place_value(0, y+1, val))
                 return true; 
         }
         else {
-            if (place_value(x+1, y))
+            if (place_value(x+1, y, val))
                 return true;
         }
         return false;
     }
 
     // loop thru all possible vals and attempt to place them
-    char val = '1';
-    for (size_t i=0; i<board_len_; ++i) {
+    // - end of loop is one char++ after '9', which is ':'
+    while (val <= '9') {
+    //for (size_t i=0; i<board_len_; ++i) {
         // check if driver called abort
         if (callback_(*this, board_, MessageType::MSG_ABORT_CHECK, move_, stats_.basesize, index, val)) {
 
@@ -97,29 +101,40 @@ bool Sudoku::place_value(unsigned x, unsigned y) {
             ++moves_;
             callback_(*this, board_, MessageType::MSG_PLACING, move_, stats_.basesize, index, val);
 
+            // next val
+            //cout << "BEFORE val=" << val <<endl;
+            //++val;
+            //cout << "AFTER val=" << val <<endl;
+
             // recurse to next position
             if (x == board_len_ - 1) {
-                // refresh val when jump to next row
-                val = '1';
-                if (place_value(0, y+1)) {
+                // refresh val to '1' when jump to next row
+                avail_chars = avail_chars_init;
+                if (place_value(0, y+1, '1')) {
                     return true;
                 } 
             }
             else {
-                if (place_value(x+1, y)) {
+                if (place_value(x+1, y, (val+1))) {
                     return true;
                 }
             }
             
-            // all vals exhausted so backtrack
+            // all vals exhausted in the above attempt to place in the subsequent slot
+            // so backtrack this slot 
+            auto old_val = board_[index];
             board_[index] = '.';
             --stats_.placed;
             ++stats_.backtracks;
-            callback_(*this, board_, MessageType::MSG_REMOVING, move_, stats_.basesize, index, val);
+            callback_(*this, board_, MessageType::MSG_REMOVING, move_, stats_.basesize, index, old_val);
+            //val = '1';
+            //--val;
         }
 
         // next val
+        //cout << "outer BEFORE val=" << val <<endl;
         ++val;
+        //cout << "outer AFTER val=" << val <<endl;
     }
 
     return false;
