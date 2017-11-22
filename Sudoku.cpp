@@ -1,4 +1,4 @@
-#define DEBUG_VALID
+//#define DEBUG_VALID
 
 #include "Sudoku.h"
 #include <iostream>
@@ -29,10 +29,23 @@ bool Sudoku::Solve() {
     unsigned x = 0;
     unsigned y = 0;
 
-    return place_value(x, y);
+    callback_(*this, board_, MessageType::MSG_STARTING, move_, stats_.basesize, -1, 0);
+
+    auto success = place_value(x, y);
+    if (success)
+        callback_(*this, board_, MessageType::MSG_FINISHED_OK, move_, stats_.basesize, -1, 0);
+    else
+        callback_(*this, board_, MessageType::MSG_FINISHED_FAIL, move_, stats_.basesize, -1, 0);
+    
+    return success;
 }
 
 bool Sudoku::place_value(unsigned x, unsigned y) {
+    // base case is when reach 1 after last row
+    if (y == board_len_)
+        return true;
+    
+    // get the 1d index into the board
     unsigned index = x + board_len_ * y;
 
 #ifdef DEBUG_VALID
@@ -65,7 +78,7 @@ bool Sudoku::place_value(unsigned x, unsigned y) {
         if (callback_(*this, board_, MessageType::MSG_ABORT_CHECK, move_, stats_.basesize, index, val)) {
 
 #ifdef DEBUG_VALID
-        cout << "ABORTED by user" << endl;
+            cout << "ABORTED by user" << endl;
 #endif
 
             return false;
@@ -79,34 +92,30 @@ bool Sudoku::place_value(unsigned x, unsigned y) {
 #endif
 
             board_[index] = val; 
-            callback_(*this, board_, MessageType::MSG_PLACING, move_, stats_.basesize, index, val);
             ++stats_.placed;
             ++move_;
             ++moves_;
+            callback_(*this, board_, MessageType::MSG_PLACING, move_, stats_.basesize, index, val);
 
             // recurse to next position
             if (x == board_len_ - 1) {
+                // refresh val when jump to next row
+                val = '1';
                 if (place_value(0, y+1)) {
                     return true;
-                }
-                else {
-                    // goto next i in for
-
                 } 
             }
             else {
                 if (place_value(x+1, y)) {
                     return true;
                 }
-                else {
-                    // goto next i in for
-                } 
             }
+            
             // all vals exhausted so backtrack
             board_[index] = '.';
             --stats_.placed;
             ++stats_.backtracks;
-            //return false;
+            callback_(*this, board_, MessageType::MSG_REMOVING, move_, stats_.basesize, index, val);
         }
 
         // next val
@@ -123,7 +132,6 @@ bool Sudoku::is_valid(unsigned x, unsigned y, char val) {
     cout << "is_valid: validating insert of " << val << " in (" << x << "," << y << ") ";
 #endif
     
-
     // check if same values in row and col
     for (size_t i=0; i<board_len_; ++i) {
         if (board_[x + board_len_*i] == val || board_[i + board_len_*y] == val) {
@@ -143,11 +151,15 @@ bool Sudoku::is_valid(unsigned x, unsigned y, char val) {
     size_t row2 = (y + stats_.basesize + 1) % stats_.basesize;
     size_t col1 = (x + stats_.basesize - 1) % stats_.basesize;
     size_t col2 = (x + stats_.basesize + 1) % stats_.basesize; 
-    
-    if (   (board_[row1+sectorrow + board_len_ * col1+sectorcol] == val)
-        || (board_[row2+sectorrow + board_len_ * col1+sectorcol] == val)
-        || (board_[row1+sectorrow + board_len_ * col2+sectorcol] == val)
-        || (board_[row2+sectorrow + board_len_ * col2+sectorcol] == val) ) {
+
+#ifdef DEBUG_VALID
+    //cout << "  testing board_[" <<  ;
+#endif
+
+    if (   (board_[(col1+sectorcol) + board_len_ * (row1+sectorrow)] == val)
+        || (board_[(col1+sectorcol) + board_len_ * (row2+sectorrow)] == val)
+        || (board_[(col2+sectorcol) + board_len_ * (row1+sectorrow)] == val)
+        || (board_[(col2+sectorcol) + board_len_ * (row2+sectorrow)] == val) ) {
 
 #ifdef DEBUG_VALID
         cout << " INVALID (EXISTS IN SECTOR)" << endl;
