@@ -3,7 +3,6 @@
 #define SUDOKUH
 //---------------------------------------------------------------------------
 #include <stddef.h> // size_t
-#include <list>
 
 class Sudoku
 {
@@ -70,10 +69,8 @@ class Sudoku
     SymbolType stype_;
     SudokuStats stats_;
     CALLBACK callback_;
-    std::list<char> avail_chars; 
-    const std::list<char> avail_chars_init{'1', '2', '3', '4', '5', '6', '7', '8', '9'};
 
-    bool place_value(unsigned x, unsigned y, char val); 
+    bool place_value(unsigned x, unsigned y); 
     bool is_valid(unsigned x, unsigned y, char val);
 };
 
