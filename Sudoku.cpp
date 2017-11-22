@@ -20,22 +20,24 @@ Sudoku::~Sudoku() {
 void Sudoku::SetupBoard(const char *values, size_t size) {
     // fill board with values
     for (size_t i=0; i<size; ++i) {
-        board_[i] = values[i];            
+        if (values[i] == '.')
+            board_[i] = ' ';
+        else
+            board_[i] = values[i];            
     }
 }
 
 bool Sudoku::Solve() {
-    move_ = 0;
     unsigned x = 0;
     unsigned y = 0;
 
-    callback_(*this, board_, MessageType::MSG_STARTING, move_, stats_.basesize, -1, 0);
+    callback_(*this, board_, MessageType::MSG_STARTING, moves_, stats_.basesize, -1, 0);
 
     auto success = place_value(x, y);
     if (success)
-        callback_(*this, board_, MessageType::MSG_FINISHED_OK, move_, stats_.basesize, -1, 0);
+        callback_(*this, board_, MessageType::MSG_FINISHED_OK, moves_, stats_.basesize, -1, 0);
     else
-        callback_(*this, board_, MessageType::MSG_FINISHED_FAIL, move_, stats_.basesize, -1, 0);
+        callback_(*this, board_, MessageType::MSG_FINISHED_FAIL, moves_, stats_.basesize, -1, 0);
     
     return success;
 }
@@ -53,7 +55,7 @@ bool Sudoku::place_value(unsigned x, unsigned y) {
 #endif
 
     // check if pos already occupied
-    if (board_[index] != '.') {
+    if (board_[index] != ' ') {
 
 #ifdef DEBUG_VALID
         cout << "NOT PLACED (OCCUPIED), going next pos" << endl;
@@ -71,11 +73,17 @@ bool Sudoku::place_value(unsigned x, unsigned y) {
         return false;
     }
 
+    // init the correct type of val
+    char val;
+    if (stype_ == SymbolType::SYM_NUMBER)
+        val = '1';
+    else
+        val = 'A';
+
     // loop thru all possible vals and attempt to place them
-    char val = '1';
     for (size_t i=0; i<board_len_; ++i) {
         // check if driver called abort
-        if (callback_(*this, board_, MessageType::MSG_ABORT_CHECK, move_, stats_.basesize, index, val)) {
+        if (callback_(*this, board_, MessageType::MSG_ABORT_CHECK, moves_, stats_.basesize, index, val)) {
 
 #ifdef DEBUG_VALID
             cout << "ABORTED by user" << endl;
@@ -85,17 +93,15 @@ bool Sudoku::place_value(unsigned x, unsigned y) {
         }
 
         // attempt to place val
+        board_[index] = val; 
+        stats_.moves = ++moves_;
+        ++stats_.placed;
+        callback_(*this, board_, MessageType::MSG_PLACING, moves_, stats_.basesize, index, val);
         if (is_valid(x, y, val)) {
             
 #ifdef DEBUG_VALID
             cout << "VALID POS and PLACING " << val << endl;
 #endif
-
-            board_[index] = val; 
-            ++stats_.placed;
-            ++move_;
-            ++moves_;
-            callback_(*this, board_, MessageType::MSG_PLACING, move_, stats_.basesize, index, val);
 
             // recurse to next position
             if (x == board_len_ - 1) {
@@ -110,13 +116,16 @@ bool Sudoku::place_value(unsigned x, unsigned y) {
             }
             
             // all vals exhausted so backtrack
-            board_[index] = '.';
-            --stats_.placed;
+            board_[index] = ' ';
+            //--stats_.placed;
             ++stats_.backtracks;
-            callback_(*this, board_, MessageType::MSG_REMOVING, move_, stats_.basesize, index, val);
+            callback_(*this, board_, MessageType::MSG_REMOVING, moves_, stats_.basesize, index, val);
         }
 
         // next val
+        board_[index] = ' ';
+        --stats_.placed;
+        callback_(*this, board_, MessageType::MSG_REMOVING, moves_, stats_.basesize, index, val);
         ++val;
     }
 
@@ -124,7 +133,7 @@ bool Sudoku::place_value(unsigned x, unsigned y) {
 }
 
 bool Sudoku::is_valid(unsigned x, unsigned y, char val) {
-    //unsigned index = x + board_len_ * y;
+    unsigned index = x + board_len_ * y;
 
 #ifdef DEBUG_VALID
     cout << "is_valid: validating insert of " << val << " in (" << x << "," << y << ") ";
@@ -132,7 +141,14 @@ bool Sudoku::is_valid(unsigned x, unsigned y, char val) {
     
     // check if same values in row and col
     for (size_t i=0; i<board_len_; ++i) {
-        if (board_[x + board_len_*i] == val || board_[i + board_len_*y] == val) {
+
+//#ifdef DEBUG_VALID
+        //cout << "is_valid: comparing val " << val << " with (" << x << "," << i << ")=" << board_[x + board_len_*i] << " and (" << i << "," << y << ")=" << board_[i + board_len_*y] << endl; 
+//#endif
+        unsigned next_col_slot_index = i + board_len_ * y;
+        unsigned next_row_slot_index = x + board_len_ * i;
+        if (    ((next_row_slot_index != index) && (board_[next_row_slot_index] == val)) 
+             || ((next_col_slot_index != index) && (board_[next_col_slot_index] == val))) {
 
 #ifdef DEBUG_VALID
             cout << " INVALID (EXISTS ON ROW/COL)" << endl;

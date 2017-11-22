@@ -65,7 +65,7 @@ class Sudoku
     // Other private fields and methods...
     char* board_;
     size_t board_len_;
-    size_t move_;
+    //size_t move_;
     SymbolType stype_;
     SudokuStats stats_;
     CALLBACK callback_;
